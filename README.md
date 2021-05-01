@@ -26,7 +26,8 @@ Key points:
 
 ```C
 /* USER CODE BEGIN PRIVATE_TYPES */
-uint8_t rxBuffer[64];
+uint8_t lcBuffer[7]; // Line coding buffer
+uint8_t rxBuffer[64]; // Receive buffer
 /* USER CODE END PRIVATE_TYPES */
 ```
 
@@ -47,27 +48,49 @@ static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
 ```
 
 ```C
-static int8_t CDC_Control_FS(uint8_t cmd, uint8_t* pbuf, uint16_t length)
+static int8_t CDC_Init_FS(void)
 {
-  /* USER CODE BEGIN 5 */
-  uint32_t baudrate = 9600;
+  /* USER CODE BEGIN 3 */
+  /* Set Application Buffers */
+  USBD_CDC_SetTxBuffer(&hUsbDeviceFS, UserTxBufferFS, 0);
+  USBD_CDC_SetRxBuffer(&hUsbDeviceFS, UserRxBufferFS);
 
-  switch(cmd)
-  {
+  // https://stackoverflow.com/a/26925578
+  uint32_t baudrate = 9600;
+  lcBuffer[0] = (uint8_t)(baudrate);
+  lcBuffer[1] = (uint8_t)(baudrate >> 8);
+  lcBuffer[2] = (uint8_t)(baudrate >> 16);
+  lcBuffer[3] = (uint8_t)(baudrate >> 24);
+  lcBuffer[4] = 0; // 1 Stop bit
+  lcBuffer[5] = 0; // No parity
+  lcBuffer[6] = 8; // 8 data bits
+
+  return (USBD_OK);
+  /* USER CODE END 3 */
+}
 ```
 
-Then further down in the same function:
+Edit `CDC_Control_FS`. Host invokes GET and SET multiple times during USB enumeration and when connecting to a serial port. Seems to update baud rate, stop bit, parity and data bits settings separately. Doesnt seem to matter what these are set to, however I have set sensible defaults in the `CDC_Init_FS` method which are then modified here as the host sets them when connecting to the port. 
 
 ```C
+    case CDC_SET_LINE_CODING:
+  	  lcBuffer[0] = pbuf[0];
+  	  lcBuffer[1] = pbuf[1];
+  	  lcBuffer[2] = pbuf[2];
+  	  lcBuffer[3] = pbuf[3];
+  	  lcBuffer[4] = pbuf[4];
+  	  lcBuffer[5] = pbuf[5];
+  	  lcBuffer[6] = pbuf[6];
+    break;
+
     case CDC_GET_LINE_CODING:
-	  // https://stackoverflow.com/a/26925578
-	  pbuf[0] = (uint8_t)(baudrate);
-	  pbuf[1] = (uint8_t)(baudrate >> 8);
-	  pbuf[2] = (uint8_t)(baudrate >> 16);
-	  pbuf[3] = (uint8_t)(baudrate >> 24);
-	  pbuf[4] = 0;
-	  pbuf[5] = 0;
-	  pbuf[6] = 8;
+      pbuf[0] = lcBuffer[0];
+      pbuf[1] = lcBuffer[1];
+      pbuf[2] = lcBuffer[2];
+      pbuf[3] = lcBuffer[3];
+      pbuf[4] = lcBuffer[4];
+      pbuf[5] = lcBuffer[5];
+      pbuf[6] = lcBuffer[6];
     break;
 ```
 
