@@ -78,23 +78,23 @@ Edit `CDC_Control_FS`. Host invokes GET and SET multiple times during USB enumer
 
 ```C
     case CDC_SET_LINE_CODING:
-  	  lcBuffer[0] = pbuf[0];
-  	  lcBuffer[1] = pbuf[1];
-  	  lcBuffer[2] = pbuf[2];
-  	  lcBuffer[3] = pbuf[3];
-  	  lcBuffer[4] = pbuf[4];
-  	  lcBuffer[5] = pbuf[5];
-  	  lcBuffer[6] = pbuf[6];
+        lcBuffer[0] = pbuf[0];
+        lcBuffer[1] = pbuf[1];
+        lcBuffer[2] = pbuf[2];
+        lcBuffer[3] = pbuf[3];
+        lcBuffer[4] = pbuf[4];
+        lcBuffer[5] = pbuf[5];
+        lcBuffer[6] = pbuf[6];
     break;
 
     case CDC_GET_LINE_CODING:
-      pbuf[0] = lcBuffer[0];
-      pbuf[1] = lcBuffer[1];
-      pbuf[2] = lcBuffer[2];
-      pbuf[3] = lcBuffer[3];
-      pbuf[4] = lcBuffer[4];
-      pbuf[5] = lcBuffer[5];
-      pbuf[6] = lcBuffer[6];
+        pbuf[0] = lcBuffer[0];
+        pbuf[1] = lcBuffer[1];
+        pbuf[2] = lcBuffer[2];
+        pbuf[3] = lcBuffer[3];
+        pbuf[4] = lcBuffer[4];
+        pbuf[5] = lcBuffer[5];
+        pbuf[6] = lcBuffer[6];
     break;
 ```
 
