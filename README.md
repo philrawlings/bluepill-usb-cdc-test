@@ -4,9 +4,7 @@
 
 Simple serial transmit and recieve using BluePill (STM32F103C8T6). This also includes setting the line coding and forcing the host to re-enumerate USB on reset (otherwise it is not possible to reconnect to the COM port from the host after it the device has been reset).
 
-Key points:
-- Only `CDC_Transmit_FS` is defined in `usbd_cdc_if.h`, which can be called from main.c (or used internally in `usbd_cdc_if.c`)
-- The `rxBuffer` which is defined in `usbd_cdc_if.c` is updated the in the `CDC_Receive_FS` function (which has been modified from the default). While not necessary, this variable is referenced in `main.c` - meaning that while debugging, it is possible to hit a breakpoint in the main while loop and inspect the contents of `rxBuffer`.
+Only `CDC_Transmit_FS` is defined in `usbd_cdc_if.h`, which can be called from `main.c` (or used internally in `usbd_cdc_if.c`). The code below is a trivial implementation of a recieve buffer, plus a exported functions which can be called from `main.c`: `CDC_ReadRxBuffer_FS` and `CDC_FlushRxBuffer_FS`;
 
 ## Steps to develop from scratch
 
@@ -21,30 +19,27 @@ Key points:
 - Save to generate code
 
 ### Code Changes
-
+---
 #### USB_Device/App/usbd_cdc_if.c
 
 ```C
-/* USER CODE BEGIN PRIVATE_TYPES */
-uint8_t lcBuffer[7]; // Line coding buffer
-uint8_t rxBuffer[64]; // Receive buffer
-/* USER CODE END PRIVATE_TYPES */
+/* USER CODE BEGIN PRIVATE_DEFINES */
+
+#define HL_RX_BUFFER_SIZE 256
+
+/* USER CODE END PRIVATE_DEFINES */
 ```
 
 ```C
-static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
-{
-  /* USER CODE BEGIN 6 */
-  USBD_CDC_SetRxBuffer(&hUsbDeviceFS, &Buf[0]);
-  USBD_CDC_ReceivePacket(&hUsbDeviceFS);
+/* USER CODE BEGIN PRIVATE_VARIABLES */
 
-  // Copy data to buffer
-  memset(rxBuffer, '\0', 64); // Clear buffer
-  uint8_t len = (uint8_t) *Len;
-  memcpy(rxBuffer, Buf, len); // Copy data to buffer
-  return (USBD_OK);
-  /* USER CODE END 6 */
-}
+uint8_t lcBuffer[7]; // Line coding buffer
+uint8_t rxBuffer[256]; // Receive buffer
+uint16_t rxBufferWritePos = 0; // Receive buffer write position
+uint16_t rxBufferBytesAvailable = 0; // Receive buffer bytes available
+uint16_t rxBufferReadPos = 0; // Receive buffer read position
+
+/* USER CODE END PRIVATE_VARIABLES */
 ```
 
 ```C
@@ -94,6 +89,67 @@ Edit `CDC_Control_FS`. Host invokes GET and SET multiple times during USB enumer
     break;
 ```
 
+```C
+static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
+{
+  /* USER CODE BEGIN 6 */
+  USBD_CDC_SetRxBuffer(&hUsbDeviceFS, &Buf[0]);
+  USBD_CDC_ReceivePacket(&hUsbDeviceFS);
+
+  uint8_t len = (uint8_t) *Len; // Get length
+
+  // Update this to use memcpy in future
+  for (uint32_t i = 0; i < len; i++) {
+	  rxBuffer[rxBufferWritePos] = Buf[i];
+	  rxBufferWritePos = (uint8_t)((rxBufferWritePos + 1) % HL_RX_BUFFER_SIZE);
+  }
+
+  rxBufferBytesAvailable += (uint16_t)len;
+
+  return (USBD_OK);
+  /* USER CODE END 6 */
+}
+```
+
+```C
+/* USER CODE BEGIN PRIVATE_FUNCTIONS_IMPLEMENTATION */
+
+uint8_t CDC_ReadRxBuffer_FS(uint8_t* Buf, uint16_t Len) {
+
+	if (rxBufferBytesAvailable < Len)
+		return 0;
+
+	// Update this to use memcpy in future
+	for (uint8_t i = 0; i < Len; i++) {
+		Buf[i] = rxBuffer[rxBufferReadPos];
+		rxBufferReadPos = (uint16_t)((rxBufferReadPos + 1) % HL_RX_BUFFER_SIZE);
+	}
+
+	rxBufferBytesAvailable -= (uint16_t)Len;
+
+	return 1;
+}
+
+void CDC_FlushRxBuffer_FS() {
+    memset(rxBuffer, 0, HL_RX_BUFFER_SIZE);
+    rxBufferWritePos = 0;
+    rxBufferReadPos = 0;
+    rxBufferBytesAvailable = 0;
+}
+
+/* USER CODE END PRIVATE_FUNCTIONS_IMPLEMENTATION */
+```
+---
+#### usbd_csc_if.h
+```C
+/* USER CODE BEGIN EXPORTED_FUNCTIONS */
+
+uint8_t CDC_ReadRxBuffer_FS(uint8_t* Buf, uint16_t Len);
+void CDC_FlushRxBuffer_FS();
+
+/* USER CODE END EXPORTED_FUNCTIONS */
+```
+---
 #### usb_device.c
 
 **This forces the host to re-enumerate the device as it is akin to unplugging the USB cable and plugging it back in. Only needed if there is a pullup resistor on the USB_DP line - as is the case with the BluePill** 
@@ -112,7 +168,7 @@ void MX_USB_DEVICE_Init(void)
   HAL_Delay(100);
   /* USER CODE END USB_DEVICE_Init_PreTreatment */
 ```
-
+---
 #### main.c
 
 ```C
@@ -124,30 +180,43 @@ void MX_USB_DEVICE_Init(void)
 
 ```C
 /* Private user code ---------------------------------------------------------*/
-/* USER CODE BEGIN 0 */
+  /* USER CODE BEGIN 2 */
 
-char *data = "Hello from device!\n";
-extern uint8_t rxBuffer[64]; // Reference to buffer defined in "usb_cdc_if.h"
+  char *txData = "Hello from device!\n";
+  uint8_t rxData[8];
+  uint32_t lastInterval = HAL_GetTick();
 
-/* USER CODE END 0 */
+  memset(rxData, 0, 8);
+
+  /* USER CODE END 2 */
 ```
 
 ```C
-/* USER CODE BEGIN WHILE */
+  /* Infinite loop */
+  /* USER CODE BEGIN WHILE */
   while (1)
   {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	uint8_t result = CDC_Transmit_FS((uint8_t *) data, strlen(data));
-	if (result == USBD_OK) {
-	    HAL_Delay(500); // Blinks faster if host connected and receiving data
+
+	uint32_t currentInterval = HAL_GetTick();
+	if (currentInterval - lastInterval > 2000) {
+		lastInterval = currentInterval;
+		uint8_t result = CDC_Transmit_FS((uint8_t *) txData, strlen(txData));
+		if (result == USBD_OK) { // result is UDBD_FAIL if host is not connected
+			HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
+		    HAL_Delay(100);
+		    HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
+		}
 	}
 	else {
-	    // Other response types: USBD_FAIL or USBD_BUSY
-		HAL_Delay(1000); // Blinks slower if host not connected
+		if (CDC_ReadRxBuffer_FS(rxData, 8)) {
+			HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
+		    HAL_Delay(100);
+		    HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
+		}
 	}
-	HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
   }
   /* USER CODE END 3 */
 ```

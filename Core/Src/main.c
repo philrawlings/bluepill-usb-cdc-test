@@ -57,9 +57,6 @@ static void MX_GPIO_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-char *data = "Hello from device!\n";
-extern uint8_t rxBuffer[64]; // Reference to buffer defined in "usb_cdc_if.h"
-
 /* USER CODE END 0 */
 
 /**
@@ -93,6 +90,12 @@ int main(void)
   MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 2 */
 
+  char *txData = "Hello from device!\n";
+  uint8_t rxData[8];
+  uint32_t lastInterval = HAL_GetTick();
+
+  memset(rxData, 0, 8);
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -102,15 +105,24 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-	uint8_t result = CDC_Transmit_FS((uint8_t *) data, strlen(data));
-	if (result == USBD_OK) {
-	    HAL_Delay(500); // Blinks faster if host connected and receiving data
+
+	uint32_t currentInterval = HAL_GetTick();
+	if (currentInterval - lastInterval > 2000) {
+		lastInterval = currentInterval;
+		uint8_t result = CDC_Transmit_FS((uint8_t *) txData, strlen(txData));
+		if (result == USBD_OK) { // result is UDBD_FAIL if host is not connected
+			HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
+		    HAL_Delay(100);
+		    HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
+		}
 	}
 	else {
-	    // Other response types: USBD_FAIL or USBD_BUSY
-		HAL_Delay(1000); // Blinks slower if host not connected
+		if (CDC_ReadRxBuffer_FS(rxData, 8)) {
+			HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
+		    HAL_Delay(100);
+		    HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
+		}
 	}
-	HAL_GPIO_TogglePin(LED_GPIO_Port, LED_Pin);
   }
   /* USER CODE END 3 */
 }

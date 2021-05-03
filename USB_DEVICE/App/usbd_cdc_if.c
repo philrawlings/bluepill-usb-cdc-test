@@ -51,9 +51,6 @@
 
 /* USER CODE BEGIN PRIVATE_TYPES */
 
-uint8_t lcBuffer[7]; // Line coding buffer
-uint8_t rxBuffer[64]; // Receive buffer
-
 /* USER CODE END PRIVATE_TYPES */
 
 /**
@@ -66,6 +63,9 @@ uint8_t rxBuffer[64]; // Receive buffer
   */
 
 /* USER CODE BEGIN PRIVATE_DEFINES */
+
+#define HL_RX_BUFFER_SIZE 256
+
 /* USER CODE END PRIVATE_DEFINES */
 
 /**
@@ -98,6 +98,12 @@ uint8_t UserRxBufferFS[APP_RX_DATA_SIZE];
 uint8_t UserTxBufferFS[APP_TX_DATA_SIZE];
 
 /* USER CODE BEGIN PRIVATE_VARIABLES */
+
+uint8_t lcBuffer[7]; // Line coding buffer
+uint8_t rxBuffer[256]; // Receive buffer
+uint16_t rxBufferWritePos = 0; // Receive buffer write position
+uint16_t rxBufferBytesAvailable = 0; // Receive buffer bytes available
+uint16_t rxBufferReadPos = 0; // Receive buffer read position
 
 /* USER CODE END PRIVATE_VARIABLES */
 
@@ -289,10 +295,16 @@ static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
   USBD_CDC_SetRxBuffer(&hUsbDeviceFS, &Buf[0]);
   USBD_CDC_ReceivePacket(&hUsbDeviceFS);
 
-  // Copy data to buffer
-  memset(rxBuffer, '\0', 64); // Clear buffer
-  uint8_t len = (uint8_t) *Len;
-  memcpy(rxBuffer, Buf, len); // Copy data to buffer
+  uint8_t len = (uint8_t) *Len; // Get length
+
+  // Update this to use memcpy in future
+  for (uint32_t i = 0; i < len; i++) {
+	  rxBuffer[rxBufferWritePos] = Buf[i];
+	  rxBufferWritePos = (uint8_t)((rxBufferWritePos + 1) % HL_RX_BUFFER_SIZE);
+  }
+
+  rxBufferBytesAvailable += (uint16_t)len;
+
   return (USBD_OK);
   /* USER CODE END 6 */
 }
@@ -323,6 +335,29 @@ uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len)
 }
 
 /* USER CODE BEGIN PRIVATE_FUNCTIONS_IMPLEMENTATION */
+
+uint8_t CDC_ReadRxBuffer_FS(uint8_t* Buf, uint16_t Len) {
+
+	if (rxBufferBytesAvailable < Len)
+		return 0;
+
+	// Update this to use memcpy in future
+	for (uint8_t i = 0; i < Len; i++) {
+		Buf[i] = rxBuffer[rxBufferReadPos];
+		rxBufferReadPos = (uint16_t)((rxBufferReadPos + 1) % HL_RX_BUFFER_SIZE);
+	}
+
+	rxBufferBytesAvailable -= (uint16_t)Len;
+
+	return 1;
+}
+
+void CDC_FlushRxBuffer_FS() {
+    memset(rxBuffer, 0, HL_RX_BUFFER_SIZE);
+    rxBufferWritePos = 0;
+    rxBufferReadPos = 0;
+    rxBufferBytesAvailable = 0;
+}
 
 /* USER CODE END PRIVATE_FUNCTIONS_IMPLEMENTATION */
 
