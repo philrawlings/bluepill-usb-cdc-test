@@ -253,13 +253,13 @@ static int8_t CDC_Control_FS(uint8_t cmd, uint8_t* pbuf, uint16_t length)
     break;
 
     case CDC_GET_LINE_CODING:
-	  pbuf[0] = lcBuffer[0];
-	  pbuf[1] = lcBuffer[1];
-	  pbuf[2] = lcBuffer[2];
-	  pbuf[3] = lcBuffer[3];
-	  pbuf[4] = lcBuffer[4];
-	  pbuf[5] = lcBuffer[5];
-	  pbuf[6] = lcBuffer[6];
+      pbuf[0] = lcBuffer[0];
+      pbuf[1] = lcBuffer[1];
+      pbuf[2] = lcBuffer[2];
+      pbuf[3] = lcBuffer[3];
+      pbuf[4] = lcBuffer[4];
+      pbuf[5] = lcBuffer[5];
+      pbuf[6] = lcBuffer[6];
     break;
 
     case CDC_SET_CONTROL_LINE_STATE:
@@ -372,14 +372,14 @@ void CDC_FlushRxBuffer_FS() {
 }
 
 void LockRxBuffer() {
-	while (rxBufferLock != 0) {
-		HAL_Delay(1);
-	}
-	rxBufferLock = 1;
+    while (rxBufferLock != 0) {
+        HAL_Delay(1);
+    }
+    rxBufferLock = 1;
 }
 
 void UnlockRxBuffer() {
-	rxBufferLock = 0;
+    rxBufferLock = 0;
 }
 
 /* USER CODE END PRIVATE_FUNCTIONS_IMPLEMENTATION */

@@ -110,17 +110,17 @@ int main(void)
 	if (currentInterval - lastInterval > 2000) {
 		lastInterval = currentInterval;
 		uint8_t result = CDC_Transmit_FS((uint8_t *) txData, strlen(txData));
-		if (result == USBD_OK) { // result is UDBD_FAIL if host is not connected
+		if (result == USBD_OK) { // result is USBD_FAIL if host is not connected
 			HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
-		    HAL_Delay(100);
-		    HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
+			HAL_Delay(100);
+			HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
 		}
 	}
 	else {
 		if (CDC_ReadRxBuffer_FS(rxData, 8)) {
 			HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
-		    HAL_Delay(100);
-		    HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
+			HAL_Delay(100);
+			HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
 		}
 	}
   }
