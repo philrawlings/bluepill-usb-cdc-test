@@ -104,6 +104,7 @@ uint8_t rxBuffer[256]; // Receive buffer
 uint16_t rxBufferWritePos = 0; // Receive buffer write position
 uint16_t rxBufferBytesAvailable = 0; // Receive buffer bytes available
 uint16_t rxBufferReadPos = 0; // Receive buffer read position
+volatile uint8_t rxBufferLock = 0; // Not a great solution: https://wiki.sei.cmu.edu/confluence/display/c/CON02-C.+Do+not+use+volatile+as+a+synchronization+primitive
 
 /* USER CODE END PRIVATE_VARIABLES */
 
@@ -137,6 +138,9 @@ static int8_t CDC_Control_FS(uint8_t cmd, uint8_t* pbuf, uint16_t length);
 static int8_t CDC_Receive_FS(uint8_t* pbuf, uint32_t *Len);
 
 /* USER CODE BEGIN PRIVATE_FUNCTIONS_DECLARATION */
+
+void LockRxBuffer();
+void UnlockRxBuffer();
 
 /* USER CODE END PRIVATE_FUNCTIONS_DECLARATION */
 
@@ -297,6 +301,8 @@ static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
 
   uint8_t len = (uint8_t) *Len; // Get length
 
+  LockRxBuffer();
+
   // Update this to use memcpy in future
   for (uint32_t i = 0; i < len; i++) {
 	  rxBuffer[rxBufferWritePos] = Buf[i];
@@ -304,6 +310,8 @@ static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
   }
 
   rxBufferBytesAvailable += (uint16_t)len;
+
+  UnlockRxBuffer();
 
   return (USBD_OK);
   /* USER CODE END 6 */
@@ -341,6 +349,8 @@ uint8_t CDC_ReadRxBuffer_FS(uint8_t* Buf, uint16_t Len) {
 	if (rxBufferBytesAvailable < Len)
 		return 0;
 
+	LockRxBuffer();
+
 	// Update this to use memcpy in future
 	for (uint8_t i = 0; i < Len; i++) {
 		Buf[i] = rxBuffer[rxBufferReadPos];
@@ -348,6 +358,8 @@ uint8_t CDC_ReadRxBuffer_FS(uint8_t* Buf, uint16_t Len) {
 	}
 
 	rxBufferBytesAvailable -= (uint16_t)Len;
+
+	UnlockRxBuffer();
 
 	return 1;
 }
@@ -357,6 +369,17 @@ void CDC_FlushRxBuffer_FS() {
     rxBufferWritePos = 0;
     rxBufferReadPos = 0;
     rxBufferBytesAvailable = 0;
+}
+
+void LockRxBuffer() {
+	while (rxBufferLock != 0) {
+		HAL_Delay(1);
+	}
+	rxBufferLock = 1;
+}
+
+void UnlockRxBuffer() {
+	rxBufferLock = 0;
 }
 
 /* USER CODE END PRIVATE_FUNCTIONS_IMPLEMENTATION */
