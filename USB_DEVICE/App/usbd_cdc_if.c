@@ -104,7 +104,8 @@ uint8_t rxBuffer[256]; // Receive buffer
 uint16_t rxBufferWritePos = 0; // Receive buffer write position
 uint16_t rxBufferBytesAvailable = 0; // Receive buffer bytes available
 uint16_t rxBufferReadPos = 0; // Receive buffer read position
-volatile uint8_t rxBufferLock = 0; // Not a great solution: https://wiki.sei.cmu.edu/confluence/display/c/CON02-C.+Do+not+use+volatile+as+a+synchronization+primitive
+volatile uint8_t rxBufferLock = 0; // Rx buffer mutex - Not a great solution, see here: https://wiki.sei.cmu.edu/confluence/display/c/CON02-C.+Do+not+use+volatile+as+a+synchronization+primitive
+uint8_t rxBufferOverflowFlag = 0; // Set if data overflows in the Rx buffer
 
 /* USER CODE END PRIVATE_VARIABLES */
 
@@ -311,6 +312,13 @@ static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
 
   rxBufferBytesAvailable += (uint16_t)len;
 
+  // Buffer overflow occurred, set flag and advance read pointer
+  if (rxBufferBytesAvailable > HL_RX_BUFFER_SIZE) {
+	  rxBufferOverflowFlag = 1;
+	  rxBufferBytesAvailable = HL_RX_BUFFER_SIZE;
+	  rxBufferReadPos = rxBufferWritePos; // Next read position is the oldest data in the buffer
+  }
+
   UnlockRxBuffer();
 
   return (USBD_OK);
@@ -346,29 +354,46 @@ uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len)
 
 uint8_t CDC_ReadRxBuffer_FS(uint8_t* Buf, uint16_t Len) {
 
+	// TEMP WORKAROUND - AVOID LOCKING UNLESS THERE IS ENOUGH DATA
+	// DEADLOCK OCCURS IF THIS ISNT USED - MEANING THE MUTEX HERE IS NO GOOD
 	if (rxBufferBytesAvailable < Len)
-		return 0;
+		return USB_CDC_READ_RX_BUFFER_NO_DATA;
+
+	uint8_t result = USB_CDC_READ_RX_BUFFER_OK;
 
 	LockRxBuffer();
 
-	// Update this to use memcpy in future
-	for (uint8_t i = 0; i < Len; i++) {
-		Buf[i] = rxBuffer[rxBufferReadPos];
-		rxBufferReadPos = (uint16_t)((rxBufferReadPos + 1) % HL_RX_BUFFER_SIZE);
-	}
+	if (rxBufferBytesAvailable < Len)
+		result = USB_CDC_READ_RX_BUFFER_NO_DATA;
+	else if (rxBufferOverflowFlag)
+		result = USB_CDC_READ_RX_BUFFER_OVERFLOW;
 
-	rxBufferBytesAvailable -= (uint16_t)Len;
+	if (result == USB_CDC_READ_RX_BUFFER_OK) {
+		// Update this to use memcpy in future
+		for (uint8_t i = 0; i < Len; i++) {
+			Buf[i] = rxBuffer[rxBufferReadPos];
+			rxBufferReadPos = (uint16_t)((rxBufferReadPos + 1) % HL_RX_BUFFER_SIZE);
+		}
+
+		rxBufferBytesAvailable -= (uint16_t)Len;
+	}
 
 	UnlockRxBuffer();
 
-	return 1;
+	return result;
 }
 
 void CDC_FlushRxBuffer_FS() {
+
+	LockRxBuffer();
+
     memset(rxBuffer, 0, HL_RX_BUFFER_SIZE);
     rxBufferWritePos = 0;
     rxBufferReadPos = 0;
     rxBufferBytesAvailable = 0;
+    rxBufferOverflowFlag = 0;
+
+    UnlockRxBuffer();
 }
 
 void LockRxBuffer() {

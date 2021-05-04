@@ -117,7 +117,7 @@ int main(void)
 		}
 	}
 	else {
-		if (CDC_ReadRxBuffer_FS(rxData, 8)) {
+		if (CDC_ReadRxBuffer_FS(rxData, 8) == USB_CDC_READ_RX_BUFFER_OK) {
 			HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
 			HAL_Delay(100);
 			HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
