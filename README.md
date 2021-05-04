@@ -27,8 +27,7 @@ Only `CDC_Transmit_FS` is defined in `usbd_cdc_if.h`, which can be called from `
 typedef enum
 {
   USB_CDC_READ_RX_BUFFER_OK   = 0U,
-  USB_CDC_READ_RX_BUFFER_NO_DATA,
-  USB_CDC_READ_RX_BUFFER_OVERFLOW,
+  USB_CDC_READ_RX_BUFFER_NO_DATA
 } USB_CDC_READ_RX_BUFFER_StatusTypeDef;
 
 /* USER CODE END EXPORTED_TYPES */
@@ -39,6 +38,7 @@ typedef enum
 /* USER CODE BEGIN EXPORTED_FUNCTIONS */
 
 uint8_t CDC_ReadRxBuffer_FS(uint8_t* Buf, uint16_t Len);
+uint16_t CDC_GetRxBufferBytesAvailable_FS();
 void CDC_FlushRxBuffer_FS();
 
 /* USER CODE END EXPORTED_FUNCTIONS */
@@ -59,22 +59,10 @@ void CDC_FlushRxBuffer_FS();
 
 uint8_t lcBuffer[7]; // Line coding buffer
 uint8_t rxBuffer[256]; // Receive buffer
-uint16_t rxBufferWritePos = 0; // Receive buffer write position
-uint16_t rxBufferBytesAvailable = 0; // Receive buffer bytes available
-uint16_t rxBufferReadPos = 0; // Receive buffer read position
-volatile uint8_t rxBufferLock = 0; // Rx buffer mutex - Not a great solution, see here: https://wiki.sei.cmu.edu/confluence/display/c/CON02-C.+Do+not+use+volatile+as+a+synchronization+primitive
-uint8_t rxBufferOverflowFlag = 0; // Set if data overflows in the Rx buffer
+volatile uint16_t rxBufferHeadPos = 0; // Receive buffer write position
+volatile uint16_t rxBufferTailPos = 0; // Receive buffer read position
 
 /* USER CODE END PRIVATE_VARIABLES */
-```
-
-```C
-/* USER CODE BEGIN PRIVATE_FUNCTIONS_DECLARATION */
-
-void LockRxBuffer();
-void UnlockRxBuffer();
-
-/* USER CODE END PRIVATE_FUNCTIONS_DECLARATION */
 ```
 
 ```C
@@ -121,6 +109,9 @@ Edit `CDC_Control_FS`. Host invokes GET and SET multiple times during USB enumer
         pbuf[4] = lcBuffer[4];
         pbuf[5] = lcBuffer[5];
         pbuf[6] = lcBuffer[6];
+
+        // Get line coding is invoked when the host connects, clear the RxBuffer when this occurs
+        CDC_FlushRxBuffer_FS();
     break;
 ```
 
@@ -133,24 +124,15 @@ static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
 
   uint8_t len = (uint8_t) *Len; // Get length
 
-  LockRxBuffer();
-
-  // Update this to use memcpy in future
+  // Update this to use memcpy in future?
   for (uint32_t i = 0; i < len; i++) {
-	  rxBuffer[rxBufferWritePos] = Buf[i];
-	  rxBufferWritePos = (uint8_t)((rxBufferWritePos + 1) % HL_RX_BUFFER_SIZE);
+	  rxBuffer[rxBufferHeadPos] = Buf[i];
+	  rxBufferHeadPos = (uint8_t)((rxBufferHeadPos + 1) % HL_RX_BUFFER_SIZE);
+
+	  if (rxBufferHeadPos == rxBufferTailPos) {
+		  return USBD_FAIL;
+	  }
   }
-
-  rxBufferBytesAvailable += (uint16_t)len;
-
-  // Buffer overflow occurred, set flag and advance read pointer
-  if (rxBufferBytesAvailable > HL_RX_BUFFER_SIZE) {
-	  rxBufferOverflowFlag = 1;
-	  rxBufferBytesAvailable = HL_RX_BUFFER_SIZE;
-	  rxBufferReadPos = rxBufferWritePos; // Next read position is the oldest data in the buffer
-  }
-
-  UnlockRxBuffer();
 
   return (USBD_OK);
   /* USER CODE END 6 */
@@ -162,57 +144,32 @@ static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
 
 uint8_t CDC_ReadRxBuffer_FS(uint8_t* Buf, uint16_t Len) {
 
-	// TEMP WORKAROUND - AVOID LOCKING UNLESS THERE IS ENOUGH DATA
-	// DEADLOCK OCCURS IF THIS ISNT USED - MEANING THE MUTEX HERE IS NO GOOD
-	if (rxBufferBytesAvailable < Len)
+	uint16_t bytesAvailable = CDC_GetRxBufferBytesAvailable_FS();
+
+	if (bytesAvailable < Len)
 		return USB_CDC_READ_RX_BUFFER_NO_DATA;
 
-	uint8_t result = USB_CDC_READ_RX_BUFFER_OK;
-
-	LockRxBuffer();
-
-	if (rxBufferBytesAvailable < Len)
-		result = USB_CDC_READ_RX_BUFFER_NO_DATA;
-	else if (rxBufferOverflowFlag)
-		result = USB_CDC_READ_RX_BUFFER_OVERFLOW;
-
-	if (result == USB_CDC_READ_RX_BUFFER_OK) {
-		// Update this to use memcpy in future
-		for (uint8_t i = 0; i < Len; i++) {
-			Buf[i] = rxBuffer[rxBufferReadPos];
-			rxBufferReadPos = (uint16_t)((rxBufferReadPos + 1) % HL_RX_BUFFER_SIZE);
-		}
-
-		rxBufferBytesAvailable -= (uint16_t)Len;
+	// Update this to use memcpy in future?
+	for (uint8_t i = 0; i < Len; i++) {
+		Buf[i] = rxBuffer[rxBufferTailPos];
+		rxBufferTailPos = (uint16_t)((rxBufferTailPos + 1) % HL_RX_BUFFER_SIZE);
 	}
 
-	UnlockRxBuffer();
+	return USB_CDC_READ_RX_BUFFER_OK;
+}
 
-	return result;
+uint16_t CDC_GetRxBufferBytesAvailable_FS() {
+
+    return (rxBufferHeadPos - rxBufferTailPos) % HL_RX_BUFFER_SIZE;
+
 }
 
 void CDC_FlushRxBuffer_FS() {
 
-	LockRxBuffer();
-
     memset(rxBuffer, 0, HL_RX_BUFFER_SIZE);
-    rxBufferWritePos = 0;
-    rxBufferReadPos = 0;
-    rxBufferBytesAvailable = 0;
-    rxBufferOverflowFlag = 0;
+    rxBufferHeadPos = 0;
+    rxBufferTailPos = 0;
 
-    UnlockRxBuffer();
-}
-
-void LockRxBuffer() {
-    while (rxBufferLock != 0) {
-        HAL_Delay(1);
-    }
-    rxBufferLock = 1;
-}
-
-void UnlockRxBuffer() {
-    rxBufferLock = 0;
 }
 
 /* USER CODE END PRIVATE_FUNCTIONS_IMPLEMENTATION */
@@ -250,11 +207,10 @@ void MX_USB_DEVICE_Init(void)
 /* Private user code ---------------------------------------------------------*/
   /* USER CODE BEGIN 2 */
 
-  char *txData = "Hello from device!\n";
   uint8_t rxData[8];
-  uint32_t lastInterval = HAL_GetTick();
-
   memset(rxData, 0, 8);
+
+  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
 
   /* USER CODE END 2 */
 ```
@@ -268,25 +224,16 @@ void MX_USB_DEVICE_Init(void)
 
     /* USER CODE BEGIN 3 */
 
-	uint32_t currentInterval = HAL_GetTick();
-	if (currentInterval - lastInterval > 2000) {
-		lastInterval = currentInterval;
-		uint8_t result = CDC_Transmit_FS((uint8_t *) txData, strlen(txData));
-		if (result == USBD_OK) { // result is USBD_FAIL if host is not connected
-			HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
-			HAL_Delay(100);
-			HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
-		}
-	}
-	else {
-		if (CDC_ReadRxBuffer_FS(rxData, 8) == USB_CDC_READ_RX_BUFFER_OK) {
-			while (CDC_Transmit_FS(rxData, 8) == USBD_BUSY);
-			while (CDC_Transmit_FS((uint8_t *)"\r\n", 2) == USBD_BUSY);
-			HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
-			HAL_Delay(100);
-			HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
-		}
-	}
+    // Echo data
+    uint16_t bytesAvailable = CDC_GetRxBufferBytesAvailable_FS();
+    if (bytesAvailable > 0) {
+    	uint16_t bytesToRead = bytesAvailable > 8 ? 8 : bytesAvailable % 8;
+    	if (CDC_ReadRxBuffer_FS(rxData, bytesToRead) == USB_CDC_READ_RX_BUFFER_OK) {
+            while (CDC_Transmit_FS(rxData, bytesToRead) == USBD_BUSY);
+    	}
+    }
+
   }
   /* USER CODE END 3 */
+}
 ```

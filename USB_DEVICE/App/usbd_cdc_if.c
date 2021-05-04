@@ -101,11 +101,8 @@ uint8_t UserTxBufferFS[APP_TX_DATA_SIZE];
 
 uint8_t lcBuffer[7]; // Line coding buffer
 uint8_t rxBuffer[256]; // Receive buffer
-uint16_t rxBufferWritePos = 0; // Receive buffer write position
-uint16_t rxBufferBytesAvailable = 0; // Receive buffer bytes available
-uint16_t rxBufferReadPos = 0; // Receive buffer read position
-volatile uint8_t rxBufferLock = 0; // Rx buffer mutex - Not a great solution, see here: https://wiki.sei.cmu.edu/confluence/display/c/CON02-C.+Do+not+use+volatile+as+a+synchronization+primitive
-uint8_t rxBufferOverflowFlag = 0; // Set if data overflows in the Rx buffer
+volatile uint16_t rxBufferHeadPos = 0; // Receive buffer write position
+volatile uint16_t rxBufferTailPos = 0; // Receive buffer read position
 
 /* USER CODE END PRIVATE_VARIABLES */
 
@@ -139,9 +136,6 @@ static int8_t CDC_Control_FS(uint8_t cmd, uint8_t* pbuf, uint16_t length);
 static int8_t CDC_Receive_FS(uint8_t* pbuf, uint32_t *Len);
 
 /* USER CODE BEGIN PRIVATE_FUNCTIONS_DECLARATION */
-
-void LockRxBuffer();
-void UnlockRxBuffer();
 
 /* USER CODE END PRIVATE_FUNCTIONS_DECLARATION */
 
@@ -261,6 +255,10 @@ static int8_t CDC_Control_FS(uint8_t cmd, uint8_t* pbuf, uint16_t length)
         pbuf[4] = lcBuffer[4];
         pbuf[5] = lcBuffer[5];
         pbuf[6] = lcBuffer[6];
+
+        // Get line coding is invoked when the host connects, clear the RxBuffer when this occurs
+        CDC_FlushRxBuffer_FS();
+
     break;
 
     case CDC_SET_CONTROL_LINE_STATE:
@@ -272,6 +270,7 @@ static int8_t CDC_Control_FS(uint8_t cmd, uint8_t* pbuf, uint16_t length)
     break;
 
   default:
+
     break;
   }
 
@@ -302,24 +301,15 @@ static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
 
   uint8_t len = (uint8_t) *Len; // Get length
 
-  LockRxBuffer();
-
-  // Update this to use memcpy in future
+  // Update this to use memcpy in future?
   for (uint32_t i = 0; i < len; i++) {
-	  rxBuffer[rxBufferWritePos] = Buf[i];
-	  rxBufferWritePos = (uint8_t)((rxBufferWritePos + 1) % HL_RX_BUFFER_SIZE);
+	  rxBuffer[rxBufferHeadPos] = Buf[i];
+	  rxBufferHeadPos = (uint8_t)((rxBufferHeadPos + 1) % HL_RX_BUFFER_SIZE);
+
+	  if (rxBufferHeadPos == rxBufferTailPos) {
+		  return USBD_FAIL;
+	  }
   }
-
-  rxBufferBytesAvailable += (uint16_t)len;
-
-  // Buffer overflow occurred, set flag and advance read pointer
-  if (rxBufferBytesAvailable > HL_RX_BUFFER_SIZE) {
-	  rxBufferOverflowFlag = 1;
-	  rxBufferBytesAvailable = HL_RX_BUFFER_SIZE;
-	  rxBufferReadPos = rxBufferWritePos; // Next read position is the oldest data in the buffer
-  }
-
-  UnlockRxBuffer();
 
   return (USBD_OK);
   /* USER CODE END 6 */
@@ -354,57 +344,32 @@ uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len)
 
 uint8_t CDC_ReadRxBuffer_FS(uint8_t* Buf, uint16_t Len) {
 
-	// TEMP WORKAROUND - AVOID LOCKING UNLESS THERE IS ENOUGH DATA
-	// DEADLOCK OCCURS IF THIS ISNT USED - MEANING THE MUTEX HERE IS NO GOOD
-	if (rxBufferBytesAvailable < Len)
+	uint16_t bytesAvailable = CDC_GetRxBufferBytesAvailable_FS();
+
+	if (bytesAvailable < Len)
 		return USB_CDC_READ_RX_BUFFER_NO_DATA;
 
-	uint8_t result = USB_CDC_READ_RX_BUFFER_OK;
-
-	LockRxBuffer();
-
-	if (rxBufferBytesAvailable < Len)
-		result = USB_CDC_READ_RX_BUFFER_NO_DATA;
-	else if (rxBufferOverflowFlag)
-		result = USB_CDC_READ_RX_BUFFER_OVERFLOW;
-
-	if (result == USB_CDC_READ_RX_BUFFER_OK) {
-		// Update this to use memcpy in future
-		for (uint8_t i = 0; i < Len; i++) {
-			Buf[i] = rxBuffer[rxBufferReadPos];
-			rxBufferReadPos = (uint16_t)((rxBufferReadPos + 1) % HL_RX_BUFFER_SIZE);
-		}
-
-		rxBufferBytesAvailable -= (uint16_t)Len;
+	// Update this to use memcpy in future?
+	for (uint8_t i = 0; i < Len; i++) {
+		Buf[i] = rxBuffer[rxBufferTailPos];
+		rxBufferTailPos = (uint16_t)((rxBufferTailPos + 1) % HL_RX_BUFFER_SIZE);
 	}
 
-	UnlockRxBuffer();
+	return USB_CDC_READ_RX_BUFFER_OK;
+}
 
-	return result;
+uint16_t CDC_GetRxBufferBytesAvailable_FS() {
+
+    return (rxBufferHeadPos - rxBufferTailPos) % HL_RX_BUFFER_SIZE;
+
 }
 
 void CDC_FlushRxBuffer_FS() {
 
-	LockRxBuffer();
-
     memset(rxBuffer, 0, HL_RX_BUFFER_SIZE);
-    rxBufferWritePos = 0;
-    rxBufferReadPos = 0;
-    rxBufferBytesAvailable = 0;
-    rxBufferOverflowFlag = 0;
+    rxBufferHeadPos = 0;
+    rxBufferTailPos = 0;
 
-    UnlockRxBuffer();
-}
-
-void LockRxBuffer() {
-    while (rxBufferLock != 0) {
-        HAL_Delay(1);
-    }
-    rxBufferLock = 1;
-}
-
-void UnlockRxBuffer() {
-    rxBufferLock = 0;
 }
 
 /* USER CODE END PRIVATE_FUNCTIONS_IMPLEMENTATION */
