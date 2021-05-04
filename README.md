@@ -4,7 +4,7 @@
 
 Simple serial transmit and recieve using BluePill (STM32F103C8T6). This also includes setting the line coding and forcing the host to re-enumerate USB on reset (otherwise it is not possible to reconnect to the COM port from the host after it the device has been reset).
 
-Only `CDC_Transmit_FS` is defined in `usbd_cdc_if.h`, which can be called from `main.c` (or used internally in `usbd_cdc_if.c`). The code below is a trivial implementation of a recieve buffer, plus a exported functions which can be called from `main.c`: `CDC_ReadRxBuffer_FS` and `CDC_FlushRxBuffer_FS`;
+Only `CDC_Transmit_FS` is defined in `usbd_cdc_if.h`, which can be called from `main.c` (or used internally in `usbd_cdc_if.c`). The code below is a trivial implementation of a recieve buffer, plus a exported functions which can be called from `main.c`: `CDC_GetRxBufferBytesAvailable_FS`, `CDC_ReadRxBuffer_FS` and `CDC_FlushRxBuffer_FS`;
 
 ## Steps to develop from scratch
 
