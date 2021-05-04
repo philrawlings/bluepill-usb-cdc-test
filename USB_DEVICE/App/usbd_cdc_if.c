@@ -64,7 +64,7 @@
 
 /* USER CODE BEGIN PRIVATE_DEFINES */
 
-#define HL_RX_BUFFER_SIZE 256
+#define HL_RX_BUFFER_SIZE 128
 
 /* USER CODE END PRIVATE_DEFINES */
 
@@ -100,7 +100,7 @@ uint8_t UserTxBufferFS[APP_TX_DATA_SIZE];
 /* USER CODE BEGIN PRIVATE_VARIABLES */
 
 uint8_t lcBuffer[7]; // Line coding buffer
-uint8_t rxBuffer[256]; // Receive buffer
+volatile uint8_t rxBuffer[HL_RX_BUFFER_SIZE]; // Receive buffer
 volatile uint16_t rxBufferHeadPos = 0; // Receive buffer write position
 volatile uint16_t rxBufferTailPos = 0; // Receive buffer read position
 
@@ -301,15 +301,19 @@ static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
 
   uint8_t len = (uint8_t) *Len; // Get length
 
+  uint16_t tempHeadPos = rxBufferHeadPos; // Increment temp head pos while writing, then update main variable when complete
+
   // Update this to use memcpy in future?
   for (uint32_t i = 0; i < len; i++) {
-	  rxBuffer[rxBufferHeadPos] = Buf[i];
-	  rxBufferHeadPos = (uint8_t)((rxBufferHeadPos + 1) % HL_RX_BUFFER_SIZE);
+	  rxBuffer[tempHeadPos] = Buf[i];
+	  tempHeadPos = (uint8_t)((tempHeadPos + 1) % HL_RX_BUFFER_SIZE);
 
-	  if (rxBufferHeadPos == rxBufferTailPos) {
+	  if (tempHeadPos == rxBufferTailPos) {
 		  return USBD_FAIL;
 	  }
   }
+
+  rxBufferHeadPos = tempHeadPos;
 
   return (USBD_OK);
   /* USER CODE END 6 */

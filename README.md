@@ -58,7 +58,7 @@ void CDC_FlushRxBuffer_FS();
 /* USER CODE BEGIN PRIVATE_VARIABLES */
 
 uint8_t lcBuffer[7]; // Line coding buffer
-uint8_t rxBuffer[256]; // Receive buffer
+uint8_t rxBuffer[HL_RX_BUFFER_SIZE]; // Receive buffer
 volatile uint16_t rxBufferHeadPos = 0; // Receive buffer write position
 volatile uint16_t rxBufferTailPos = 0; // Receive buffer read position
 
