@@ -90,7 +90,7 @@ int main(void)
   MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 2 */
 
-  char *txData = "Hello from device!\n";
+  char *txData = "Hello from device!\r\n";
   uint8_t rxData[8];
   uint32_t lastInterval = HAL_GetTick();
 
@@ -118,6 +118,8 @@ int main(void)
 	}
 	else {
 		if (CDC_ReadRxBuffer_FS(rxData, 8) == USB_CDC_READ_RX_BUFFER_OK) {
+			while (CDC_Transmit_FS(rxData, 8) == USBD_BUSY);
+			while (CDC_Transmit_FS((uint8_t *)"\r\n", 2) == USBD_BUSY);
 			HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
 			HAL_Delay(100);
 			HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
