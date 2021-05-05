@@ -211,6 +211,8 @@ void MX_USB_DEVICE_Init(void)
   uint8_t rxData[8];
   memset(rxData, 0, 8);
 
+  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
+  HAL_Delay(500);
   HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
 
   /* USER CODE END 2 */
