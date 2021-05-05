@@ -24,7 +24,6 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "usbd_cdc_if.h"
-#include "string.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -108,7 +107,7 @@ int main(void)
     // Echo data
     uint16_t bytesAvailable = CDC_GetRxBufferBytesAvailable_FS();
     if (bytesAvailable > 0) {
-    	uint16_t bytesToRead = bytesAvailable >= 8 ? 8 : bytesAvailable % 8;
+    	uint16_t bytesToRead = bytesAvailable >= 8 ? 8 : bytesAvailable;
     	if (CDC_ReadRxBuffer_FS(rxData, bytesToRead) == USB_CDC_READ_RX_BUFFER_OK) {
             while (CDC_Transmit_FS(rxData, bytesToRead) == USBD_BUSY);
     	}

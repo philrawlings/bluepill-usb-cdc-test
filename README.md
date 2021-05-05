@@ -124,15 +124,19 @@ static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
 
   uint8_t len = (uint8_t) *Len; // Get length
 
+  uint16_t tempHeadPos = rxBufferHeadPos; // Increment temp head pos while writing, then update main variable when complete
+
   // Update this to use memcpy in future?
   for (uint32_t i = 0; i < len; i++) {
-	  rxBuffer[rxBufferHeadPos] = Buf[i];
-	  rxBufferHeadPos = (uint8_t)((rxBufferHeadPos + 1) % HL_RX_BUFFER_SIZE);
+	  rxBuffer[tempHeadPos] = Buf[i];
+	  tempHeadPos = (uint8_t)((tempHeadPos + 1) % HL_RX_BUFFER_SIZE);
 
-	  if (rxBufferHeadPos == rxBufferTailPos) {
+	  if (tempHeadPos == rxBufferTailPos) {
 		  return USBD_FAIL;
 	  }
   }
+
+  rxBufferHeadPos = tempHeadPos;
 
   return (USBD_OK);
   /* USER CODE END 6 */
@@ -143,7 +147,6 @@ static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
 /* USER CODE BEGIN PRIVATE_FUNCTIONS_IMPLEMENTATION */
 
 uint8_t CDC_ReadRxBuffer_FS(uint8_t* Buf, uint16_t Len) {
-
 	uint16_t bytesAvailable = CDC_GetRxBufferBytesAvailable_FS();
 
 	if (bytesAvailable < Len)
@@ -159,17 +162,16 @@ uint8_t CDC_ReadRxBuffer_FS(uint8_t* Buf, uint16_t Len) {
 }
 
 uint16_t CDC_GetRxBufferBytesAvailable_FS() {
-
     return (rxBufferHeadPos - rxBufferTailPos) % HL_RX_BUFFER_SIZE;
-
 }
 
 void CDC_FlushRxBuffer_FS() {
+    for (int i = 0; i < HL_RX_BUFFER_SIZE; i++) {
+    	rxBuffer[i] = 0;
+    }
 
-    memset(rxBuffer, 0, HL_RX_BUFFER_SIZE);
     rxBufferHeadPos = 0;
     rxBufferTailPos = 0;
-
 }
 
 /* USER CODE END PRIVATE_FUNCTIONS_IMPLEMENTATION */
@@ -199,7 +201,6 @@ void MX_USB_DEVICE_Init(void)
 ```C
 /* USER CODE BEGIN Includes */
 #include "usbd_cdc_if.h"
-#include "string.h"
 /* USER CODE END Includes */
 ```
 
@@ -227,7 +228,7 @@ void MX_USB_DEVICE_Init(void)
     // Echo data
     uint16_t bytesAvailable = CDC_GetRxBufferBytesAvailable_FS();
     if (bytesAvailable > 0) {
-    	uint16_t bytesToRead = bytesAvailable >= 8 ? 8 : bytesAvailable % 8;
+    	uint16_t bytesToRead = bytesAvailable >= 8 ? 8 : bytesAvailable;
     	if (CDC_ReadRxBuffer_FS(rxData, bytesToRead) == USB_CDC_READ_RX_BUFFER_OK) {
             while (CDC_Transmit_FS(rxData, bytesToRead) == USBD_BUSY);
     	}

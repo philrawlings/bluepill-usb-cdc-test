@@ -347,7 +347,6 @@ uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len)
 /* USER CODE BEGIN PRIVATE_FUNCTIONS_IMPLEMENTATION */
 
 uint8_t CDC_ReadRxBuffer_FS(uint8_t* Buf, uint16_t Len) {
-
 	uint16_t bytesAvailable = CDC_GetRxBufferBytesAvailable_FS();
 
 	if (bytesAvailable < Len)
@@ -363,17 +362,16 @@ uint8_t CDC_ReadRxBuffer_FS(uint8_t* Buf, uint16_t Len) {
 }
 
 uint16_t CDC_GetRxBufferBytesAvailable_FS() {
-
     return (rxBufferHeadPos - rxBufferTailPos) % HL_RX_BUFFER_SIZE;
-
 }
 
 void CDC_FlushRxBuffer_FS() {
+    for (int i = 0; i < HL_RX_BUFFER_SIZE; i++) {
+    	rxBuffer[i] = 0;
+    }
 
-    memset(rxBuffer, 0, HL_RX_BUFFER_SIZE);
     rxBufferHeadPos = 0;
     rxBufferTailPos = 0;
-
 }
 
 /* USER CODE END PRIVATE_FUNCTIONS_IMPLEMENTATION */
