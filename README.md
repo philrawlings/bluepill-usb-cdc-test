@@ -20,7 +20,7 @@ Only `CDC_Transmit_FS` is defined in `usbd_cdc_if.h`, which can be called from `
 
 ### Code Changes
 ---
-#### usbd_csc_if.h
+#### USB_Device/App/usbd_cdc_if.h
 ```C
 /* USER CODE BEGIN EXPORTED_TYPES */
 
