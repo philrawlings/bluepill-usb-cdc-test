@@ -49,7 +49,7 @@ void CDC_FlushRxBuffer_FS();
 ```C
 /* USER CODE BEGIN PRIVATE_DEFINES */
 
-#define HL_RX_BUFFER_SIZE 256
+#define HL_RX_BUFFER_SIZE 256 // Can be larger if desired
 
 /* USER CODE END PRIVATE_DEFINES */
 ```
@@ -124,19 +124,29 @@ static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
 
   uint8_t len = (uint8_t) *Len; // Get length
 
-  uint16_t tempHeadPos = rxBufferHeadPos; // Increment temp head pos while writing, then update main variable when complete
+    uint16_t tempHeadPos = rxBufferHeadPos; // Increment temp head pos while writing, then update main variable when complete
 
-  // Update this to use memcpy in future?
-  for (uint32_t i = 0; i < len; i++) {
-	  rxBuffer[tempHeadPos] = Buf[i];
-	  tempHeadPos = (uint8_t)((tempHeadPos + 1) % HL_RX_BUFFER_SIZE);
+    for (uint32_t i = 0; i < len; i++) {
+  	  rxBuffer[tempHeadPos] = Buf[i];
 
-	  if (tempHeadPos == rxBufferTailPos) {
-		  return USBD_FAIL;
-	  }
-  }
+  	  // Compact position increment logic
+  	  tempHeadPos = (uint16_t)((uint16_t)(tempHeadPos + 1) % HL_RX_BUFFER_SIZE);
 
-  rxBufferHeadPos = tempHeadPos;
+  	  /*
+  	  // Simple but more verbose version if preferred
+  	  tempHeadPos++;
+  	  if (tempHeadPos == HL_RX_BUFFER_SIZE) {
+  		  tempHeadPos = 0;
+  	  }
+  	  */
+
+  	  if (tempHeadPos == rxBufferTailPos) {
+  		  return USBD_FAIL;
+  	  }
+
+    }
+
+    rxBufferHeadPos = tempHeadPos;
 
   return (USBD_OK);
   /* USER CODE END 6 */
@@ -155,14 +165,37 @@ uint8_t CDC_ReadRxBuffer_FS(uint8_t* Buf, uint16_t Len) {
 	// Update this to use memcpy in future?
 	for (uint8_t i = 0; i < Len; i++) {
 		Buf[i] = rxBuffer[rxBufferTailPos];
-		rxBufferTailPos = (uint16_t)((rxBufferTailPos + 1) % HL_RX_BUFFER_SIZE);
+		rxBufferTailPos = (uint16_t)((uint16_t)(rxBufferTailPos + 1) % HL_RX_BUFFER_SIZE);
+		/*
+		rxBufferTailPos++;
+		if (rxBufferTailPos == HL_RX_BUFFER_SIZE) {
+			rxBufferTailPos = 0;
+		}
+		*/
 	}
 
 	return USB_CDC_READ_RX_BUFFER_OK;
 }
 
+
 uint16_t CDC_GetRxBufferBytesAvailable_FS() {
-    return (rxBufferHeadPos - rxBufferTailPos) % HL_RX_BUFFER_SIZE;
+
+	// Compact version
+    return (uint16_t)(rxBufferHeadPos - rxBufferTailPos) % HL_RX_BUFFER_SIZE;
+	
+    /*
+	// Simple, more verbose version if preferred
+	
+	// Take snapshot of head and tail pos to prevent head position changing in 
+	// CDC_Receive_FS after if statement but before calculation
+	uint16_t headPos = rxBufferHeadPos;
+	uint16_t tailPos = rxBufferTailPos;
+
+	if (headPos >= tailPos)
+		return headPos - tailPos;
+	else
+		return HL_RX_BUFFER_SIZE - tailPos + headPos;
+	*/
 }
 
 void CDC_FlushRxBuffer_FS() {
@@ -230,12 +263,11 @@ void MX_USB_DEVICE_Init(void)
     // Echo data
     uint16_t bytesAvailable = CDC_GetRxBufferBytesAvailable_FS();
     if (bytesAvailable > 0) {
-    	uint16_t bytesToRead = bytesAvailable >= 8 ? 8 : bytesAvailable;
-    	if (CDC_ReadRxBuffer_FS(rxData, bytesToRead) == USB_CDC_READ_RX_BUFFER_OK) {
-            while (CDC_Transmit_FS(rxData, bytesToRead) == USBD_BUSY);
-    	}
+        uint16_t bytesToRead = bytesAvailable >= 8 ? 8 : bytesAvailable;
+	    if (CDC_ReadRxBuffer_FS(rxData, bytesToRead) == USB_CDC_READ_RX_BUFFER_OK) {
+	        while (CDC_Transmit_FS(rxData, bytesToRead) == USBD_BUSY);
+        }
     }
-
   }
   /* USER CODE END 3 */
 }
