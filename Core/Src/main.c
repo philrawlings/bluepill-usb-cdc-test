@@ -89,9 +89,13 @@ int main(void)
   MX_USB_DEVICE_Init();
   /* USER CODE BEGIN 2 */
 
+  // Read buffer
   uint8_t rxData[8];
   memset(rxData, 0, 8);
 
+  // Flash LED briefly on reset
+  HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
+  HAL_Delay(500);
   HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_SET);
 
   /* USER CODE END 2 */
