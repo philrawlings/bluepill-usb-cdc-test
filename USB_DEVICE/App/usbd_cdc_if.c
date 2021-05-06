@@ -362,7 +362,6 @@ uint8_t CDC_ReadRxBuffer_FS(uint8_t* Buf, uint16_t Len) {
 	if (bytesAvailable < Len)
 		return USB_CDC_READ_RX_BUFFER_NO_DATA;
 
-	// Update this to use memcpy in future?
 	for (uint8_t i = 0; i < Len; i++) {
 		Buf[i] = rxBuffer[rxBufferTailPos];
 		rxBufferTailPos = (uint16_t)((uint16_t)(rxBufferTailPos + 1) % HL_RX_BUFFER_SIZE);
