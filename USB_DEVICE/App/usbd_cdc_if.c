@@ -297,33 +297,33 @@ static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
 {
   /* USER CODE BEGIN 6 */
   USBD_CDC_SetRxBuffer(&hUsbDeviceFS, &Buf[0]);
-  USBD_CDC_ReceivePacket(&hUsbDeviceFS);
 
   uint8_t len = (uint8_t) *Len; // Get length
 
-    uint16_t tempHeadPos = rxBufferHeadPos; // Increment temp head pos while writing, then update main variable when complete
+  uint16_t tempHeadPos = rxBufferHeadPos; // Increment temp head pos while writing, then update main variable when complete
 
-    for (uint32_t i = 0; i < len; i++) {
-  	  rxBuffer[tempHeadPos] = Buf[i];
+  for (uint32_t i = 0; i < len; i++) {
+    rxBuffer[tempHeadPos] = Buf[i];
 
-  	  // Compact position increment logic
-  	  tempHeadPos = (uint16_t)((uint16_t)(tempHeadPos + 1) % HL_RX_BUFFER_SIZE);
+  	// Compact position increment logic
+  	tempHeadPos = (uint16_t)((uint16_t)(tempHeadPos + 1) % HL_RX_BUFFER_SIZE);
 
-  	  /*
-  	  // Simple but more verbose version if preferred
-  	  tempHeadPos++;
-  	  if (tempHeadPos == HL_RX_BUFFER_SIZE) {
-  		  tempHeadPos = 0;
-  	  }
-  	  */
+  	/*
+  	// Simple but more verbose version if preferred
+  	tempHeadPos++;
+  	if (tempHeadPos == HL_RX_BUFFER_SIZE) {
+        tempHeadPos = 0;
+  	}
+  	*/
 
-  	  if (tempHeadPos == rxBufferTailPos) {
-  		  return USBD_FAIL;
-  	  }
-
+    if (tempHeadPos == rxBufferTailPos) {
+  	    return USBD_FAIL;
     }
+  }
 
-    rxBufferHeadPos = tempHeadPos;
+  rxBufferHeadPos = tempHeadPos;
+
+  USBD_CDC_ReceivePacket(&hUsbDeviceFS);
 
   return (USBD_OK);
   /* USER CODE END 6 */
