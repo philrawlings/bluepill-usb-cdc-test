@@ -213,7 +213,7 @@ void CDC_FlushRxBuffer_FS() {
 ---
 #### usb_device.c
 
-**This forces the host to re-enumerate the device when the MCI is reset, as it is akin to unplugging the USB cable and plugging it back in. Only needed if there is a pullup resistor on the USB_DP line - as is the case with the BluePill** 
+**This forces the host to re-enumerate the device when the MCU is reset, as it is akin to unplugging the USB cable and plugging it back in. Only needed if there is a pullup resistor on the USB_DP line - as is the case with the BluePill** 
 
 ```C
 void MX_USB_DEVICE_Init(void)
