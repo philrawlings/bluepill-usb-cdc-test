@@ -112,7 +112,7 @@ int main(void)
     uint16_t bytesAvailable = CDC_GetRxBufferBytesAvailable_FS();
     if (bytesAvailable > 0) {
     	uint16_t bytesToRead = bytesAvailable >= 8 ? 8 : bytesAvailable;
-    	if (CDC_ReadRxBuffer_FS(rxData, bytesToRead) == USB_CDC_READ_RX_BUFFER_OK) {
+    	if (CDC_ReadRxBuffer_FS(rxData, bytesToRead) == USB_CDC_RX_BUFFER_OK) {
             while (CDC_Transmit_FS(rxData, bytesToRead) == USBD_BUSY);
     	}
     }

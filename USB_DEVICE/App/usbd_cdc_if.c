@@ -360,7 +360,7 @@ uint8_t CDC_ReadRxBuffer_FS(uint8_t* Buf, uint16_t Len) {
 	uint16_t bytesAvailable = CDC_GetRxBufferBytesAvailable_FS();
 
 	if (bytesAvailable < Len)
-		return USB_CDC_READ_RX_BUFFER_NO_DATA;
+		return USB_CDC_RX_BUFFER_NO_DATA;
 
 	for (uint8_t i = 0; i < Len; i++) {
 		Buf[i] = rxBuffer[rxBufferTailPos];
@@ -373,9 +373,21 @@ uint8_t CDC_ReadRxBuffer_FS(uint8_t* Buf, uint16_t Len) {
 		*/
 	}
 
-	return USB_CDC_READ_RX_BUFFER_OK;
+	return USB_CDC_RX_BUFFER_OK;
 }
 
+uint8_t CDC_PeekRxBuffer_FS(uint8_t* Buf, uint16_t Len) {
+  uint16_t bytesAvailable = CDC_GetRxBufferBytesAvailable_FS();
+
+  if (bytesAvailable < Len)
+    return USB_CDC_RX_BUFFER_NO_DATA;
+
+  for (uint8_t i = 0; i < Len; i++) {
+    Buf[i] = rxBuffer[rxBufferTailPos]; // Get data without incrementing the tail position
+  }
+
+  return USB_CDC_RX_BUFFER_OK;
+}
 
 uint16_t CDC_GetRxBufferBytesAvailable_FS() {
 
