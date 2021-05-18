@@ -28,9 +28,9 @@ The code implemented in all files except `main.c` is general purpose. The code i
 
 typedef enum
 {
-  USB_CDC_READ_RX_BUFFER_OK   = 0U,
-  USB_CDC_READ_RX_BUFFER_NO_DATA
-} USB_CDC_READ_RX_BUFFER_StatusTypeDef;
+  USB_CDC_RX_BUFFER_OK   = 0U,
+  USB_CDC_RX_BUFFER_NO_DATA
+} USB_CDC_RX_BUFFER_StatusTypeDef;
 
 /* USER CODE END EXPORTED_TYPES */
 
@@ -40,6 +40,7 @@ typedef enum
 /* USER CODE BEGIN EXPORTED_FUNCTIONS */
 
 uint8_t CDC_ReadRxBuffer_FS(uint8_t* Buf, uint16_t Len);
+uint8_t CDC_PeekRxBuffer_FS(uint8_t* Buf, uint16_t Len);
 uint16_t CDC_GetRxBufferBytesAvailable_FS();
 void CDC_FlushRxBuffer_FS();
 
@@ -162,7 +163,7 @@ uint8_t CDC_ReadRxBuffer_FS(uint8_t* Buf, uint16_t Len) {
 	uint16_t bytesAvailable = CDC_GetRxBufferBytesAvailable_FS();
 
 	if (bytesAvailable < Len)
-		return USB_CDC_READ_RX_BUFFER_NO_DATA;
+		return USB_CDC_RX_BUFFER_NO_DATA;
 
 	for (uint8_t i = 0; i < Len; i++) {
 		Buf[i] = rxBuffer[rxBufferTailPos];
@@ -175,19 +176,31 @@ uint8_t CDC_ReadRxBuffer_FS(uint8_t* Buf, uint16_t Len) {
 		*/
 	}
 
-	return USB_CDC_READ_RX_BUFFER_OK;
+	return USB_CDC_RX_BUFFER_OK;
 }
 
+uint8_t CDC_PeekRxBuffer_FS(uint8_t* Buf, uint16_t Len) {
+  uint16_t bytesAvailable = CDC_GetRxBufferBytesAvailable_FS();
+
+  if (bytesAvailable < Len)
+    return USB_CDC_RX_BUFFER_NO_DATA;
+
+  for (uint8_t i = 0; i < Len; i++) {
+    Buf[i] = rxBuffer[rxBufferTailPos]; // Get data without incrementing the tail position
+  }
+
+  return USB_CDC_RX_BUFFER_OK;
+}
 
 uint16_t CDC_GetRxBufferBytesAvailable_FS() {
 
 	// Compact version
     return (uint16_t)(rxBufferHeadPos - rxBufferTailPos) % HL_RX_BUFFER_SIZE;
-	
+
     /*
 	// Simple, more verbose version if preferred
-	
-	// Take snapshot of head and tail pos to prevent head position changing in 
+
+	// Take snapshot of head and tail pos to prevent head position changing in
 	// CDC_Receive_FS after if statement but before calculation
 	uint16_t headPos = rxBufferHeadPos;
 	uint16_t tailPos = rxBufferTailPos;
@@ -267,7 +280,7 @@ void MX_USB_DEVICE_Init(void)
     uint16_t bytesAvailable = CDC_GetRxBufferBytesAvailable_FS();
     if (bytesAvailable > 0) {
         uint16_t bytesToRead = bytesAvailable >= 8 ? 8 : bytesAvailable;
-	    if (CDC_ReadRxBuffer_FS(rxData, bytesToRead) == USB_CDC_READ_RX_BUFFER_OK) {
+	    if (CDC_ReadRxBuffer_FS(rxData, bytesToRead) == USB_CDC_RX_BUFFER_OK) {
 	        while (CDC_Transmit_FS(rxData, bytesToRead) == USBD_BUSY);
         }
     }
