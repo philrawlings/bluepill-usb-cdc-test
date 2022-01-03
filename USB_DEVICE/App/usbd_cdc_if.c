@@ -220,45 +220,44 @@ static int8_t CDC_Control_FS(uint8_t cmd, uint8_t* pbuf, uint16_t length)
 
     break;
 
-  /*******************************************************************************/
-  /* Line Coding Structure                                                       */
-  /*-----------------------------------------------------------------------------*/
-  /* Offset | Field       | Size | Value  | Description                          */
-  /* 0      | dwDTERate   |   4  | Number |Data terminal rate, in bits per second*/
-  /* 4      | bCharFormat |   1  | Number | Stop bits                            */
-  /*                                        0 - 1 Stop bit                       */
-  /*                                        1 - 1.5 Stop bits                    */
-  /*                                        2 - 2 Stop bits                      */
-  /* 5      | bParityType |  1   | Number | Parity                               */
-  /*                                        0 - None                             */
-  /*                                        1 - Odd                              */
-  /*                                        2 - Even                             */
-  /*                                        3 - Mark                             */
-  /*                                        4 - Space                            */
-  /* 6      | bDataBits  |   1   | Number Data bits (5, 6, 7, 8 or 16).          */
-  /*******************************************************************************/
+    /*******************************************************************************/
+    /* Line Coding Structure                                                       */
+    /*-----------------------------------------------------------------------------*/
+    /* Offset | Field       | Size | Value  | Description                          */
+    /* 0      | dwDTERate   |   4  | Number |Data terminal rate, in bits per second*/
+    /* 4      | bCharFormat |   1  | Number | Stop bits                            */
+    /*                                        0 - 1 Stop bit                       */
+    /*                                        1 - 1.5 Stop bits                    */
+    /*                                        2 - 2 Stop bits                      */
+    /* 5      | bParityType |  1   | Number | Parity                               */
+    /*                                        0 - None                             */
+    /*                                        1 - Odd                              */
+    /*                                        2 - Even                             */
+    /*                                        3 - Mark                             */
+    /*                                        4 - Space                            */
+    /* 6      | bDataBits  |   1   | Number Data bits (5, 6, 7, 8 or 16).          */
+    /*******************************************************************************/
     case CDC_SET_LINE_CODING:
-        lcBuffer[0] = pbuf[0];
-        lcBuffer[1] = pbuf[1];
-        lcBuffer[2] = pbuf[2];
-        lcBuffer[3] = pbuf[3];
-        lcBuffer[4] = pbuf[4];
-        lcBuffer[5] = pbuf[5];
-        lcBuffer[6] = pbuf[6];
+      lcBuffer[0] = pbuf[0];
+      lcBuffer[1] = pbuf[1];
+      lcBuffer[2] = pbuf[2];
+      lcBuffer[3] = pbuf[3];
+      lcBuffer[4] = pbuf[4];
+      lcBuffer[5] = pbuf[5];
+      lcBuffer[6] = pbuf[6];
     break;
 
     case CDC_GET_LINE_CODING:
-        pbuf[0] = lcBuffer[0];
-        pbuf[1] = lcBuffer[1];
-        pbuf[2] = lcBuffer[2];
-        pbuf[3] = lcBuffer[3];
-        pbuf[4] = lcBuffer[4];
-        pbuf[5] = lcBuffer[5];
-        pbuf[6] = lcBuffer[6];
+      pbuf[0] = lcBuffer[0];
+      pbuf[1] = lcBuffer[1];
+      pbuf[2] = lcBuffer[2];
+      pbuf[3] = lcBuffer[3];
+      pbuf[4] = lcBuffer[4];
+      pbuf[5] = lcBuffer[5];
+      pbuf[6] = lcBuffer[6];
 
-        // Get line coding is invoked when the host connects, clear the RxBuffer when this occurs
-        CDC_FlushRxBuffer_FS();
-
+      // Get line coding is invoked when the host connects, clear the RxBuffer when this occurs
+      CDC_FlushRxBuffer_FS();
     break;
 
     case CDC_SET_CONTROL_LINE_STATE:
@@ -299,32 +298,19 @@ static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
   USBD_CDC_SetRxBuffer(&hUsbDeviceFS, &Buf[0]);
 
   uint8_t len = (uint8_t) *Len; // Get length
-
   uint16_t tempHeadPos = rxBufferHeadPos; // Increment temp head pos while writing, then update main variable when complete
 
   for (uint32_t i = 0; i < len; i++) {
     rxBuffer[tempHeadPos] = Buf[i];
-
-  	// Compact position increment logic
   	tempHeadPos = (uint16_t)((uint16_t)(tempHeadPos + 1) % HL_RX_BUFFER_SIZE);
-
-  	/*
-  	// Simple but more verbose version if preferred
-  	tempHeadPos++;
-  	if (tempHeadPos == HL_RX_BUFFER_SIZE) {
-        tempHeadPos = 0;
-  	}
-  	*/
-
     if (tempHeadPos == rxBufferTailPos) {
-  	    return USBD_FAIL;
+      return USBD_FAIL;
     }
   }
 
   rxBufferHeadPos = tempHeadPos;
-
   USBD_CDC_ReceivePacket(&hUsbDeviceFS);
-
+  
   return (USBD_OK);
   /* USER CODE END 6 */
 }
@@ -355,69 +341,48 @@ uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len)
 }
 
 /* USER CODE BEGIN PRIVATE_FUNCTIONS_IMPLEMENTATION */
-
-uint8_t CDC_ReadRxBuffer_FS(uint8_t* Buf, uint16_t Len) {
-	uint16_t bytesAvailable = CDC_GetRxBufferBytesAvailable_FS();
-
-	if (bytesAvailable < Len)
-		return USB_CDC_RX_BUFFER_NO_DATA;
-
-	for (uint8_t i = 0; i < Len; i++) {
-		Buf[i] = rxBuffer[rxBufferTailPos];
-		rxBufferTailPos = (uint16_t)((uint16_t)(rxBufferTailPos + 1) % HL_RX_BUFFER_SIZE);
-		/*
-		rxBufferTailPos++;
-		if (rxBufferTailPos == HL_RX_BUFFER_SIZE) {
-			rxBufferTailPos = 0;
-		}
-		*/
-	}
-
-	return USB_CDC_RX_BUFFER_OK;
-}
-
-uint8_t CDC_PeekRxBuffer_FS(uint8_t* Buf, uint16_t Len) {
+uint8_t CDC_ReadRxBuffer_FS(uint8_t* Buf, uint16_t Len)
+{
   uint16_t bytesAvailable = CDC_GetRxBufferBytesAvailable_FS();
 
   if (bytesAvailable < Len)
     return USB_CDC_RX_BUFFER_NO_DATA;
 
   for (uint8_t i = 0; i < Len; i++) {
-    Buf[i] = rxBuffer[rxBufferTailPos]; // Get data without incrementing the tail position
+    Buf[i] = rxBuffer[rxBufferTailPos];
+    rxBufferTailPos = (uint16_t)((uint16_t)(rxBufferTailPos + 1) % HL_RX_BUFFER_SIZE);
   }
 
   return USB_CDC_RX_BUFFER_OK;
 }
 
-uint16_t CDC_GetRxBufferBytesAvailable_FS() {
+uint8_t CDC_PeekRxBuffer_FS(uint8_t* Buf, uint16_t Len)
+{
+  uint16_t bytesAvailable = CDC_GetRxBufferBytesAvailable_FS();
 
-	// Compact version
-    return (uint16_t)(rxBufferHeadPos - rxBufferTailPos) % HL_RX_BUFFER_SIZE;
+  if (bytesAvailable < Len)
+    return USB_CDC_RX_BUFFER_NO_DATA;
 
-    /*
-	// Simple, more verbose version if preferred
+  for (uint8_t i = 0; i < Len; i++) {
+    Buf[i] = rxBuffer[(rxBufferTailPos + i) % HL_RX_BUFFER_SIZE]; // Get data without incrementing the tail position
+  }
 
-	// Take snapshot of head and tail pos to prevent head position changing in
-	// CDC_Receive_FS after if statement but before calculation
-	uint16_t headPos = rxBufferHeadPos;
-	uint16_t tailPos = rxBufferTailPos;
+  return USB_CDC_RX_BUFFER_OK;
+}
 
-	if (headPos >= tailPos)
-		return headPos - tailPos;
-	else
-		return HL_RX_BUFFER_SIZE - tailPos + headPos;
-	*/
+uint16_t CDC_GetRxBufferBytesAvailable_FS()
+{
+  return (uint16_t)(rxBufferHeadPos - rxBufferTailPos) % HL_RX_BUFFER_SIZE;
 }
 
 void CDC_FlushRxBuffer_FS() {
-    for (int i = 0; i < HL_RX_BUFFER_SIZE; i++) {
-    	rxBuffer[i] = 0;
-    }
+  for (int i = 0; i < HL_RX_BUFFER_SIZE; i++) {
+    rxBuffer[i] = 0;
+  }
 
-    rxBufferHeadPos = 0;
-    rxBufferTailPos = 0;
+  rxBufferHeadPos = 0;
+  rxBufferTailPos = 0;
 }
-
 /* USER CODE END PRIVATE_FUNCTIONS_IMPLEMENTATION */
 
 /**
