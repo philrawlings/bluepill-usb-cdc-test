@@ -129,7 +129,7 @@ static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
 
   for (uint32_t i = 0; i < len; i++) {
     rxBuffer[tempHeadPos] = Buf[i];
-  	tempHeadPos = (uint16_t)((uint16_t)(tempHeadPos + 1) % HL_RX_BUFFER_SIZE);
+    tempHeadPos = (uint16_t)((uint16_t)(tempHeadPos + 1) % HL_RX_BUFFER_SIZE);
     if (tempHeadPos == rxBufferTailPos) {
       return USBD_FAIL;
     }
